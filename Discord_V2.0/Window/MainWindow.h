@@ -1,7 +1,13 @@
 #ifndef MAINWINDOW_HEADER
 #define MAINWINDOW_HEADER
 #include <Windows.h>
-#include <stdio.h>
+#include "../Console/Console.h"
+
+static LPCWSTR MainClassName = L"MainWindowClass";
+static HWND MainWindow;
+int wWidth, wHeight; // Window resolution
+short wPosX, wPosY;  // Window position
+int sWidth, sHeight; // Screen resolution
 
 static void CenterWindow(HWND hWnd)
 {
@@ -11,12 +17,27 @@ static void CenterWindow(HWND hWnd)
 	int win_w = rc.right - rc.left;
 	int win_h = rc.bottom - rc.top;
 
-	int screen_w = GetSystemMetrics(SM_CXSCREEN);
-	int screen_h = GetSystemMetrics(SM_CYSCREEN);
+	sWidth = GetSystemMetrics(SM_CXSCREEN);
+	sHeight = GetSystemMetrics(SM_CYSCREEN);
 
-	SetWindowPos(hWnd, HWND_TOP, (screen_w - win_w) / 2,
-		(screen_h - win_h) / 2, 0, 0, SWP_NOSIZE);
+	wPosX = (sWidth - win_w) / 2;
+	wPosY = (sHeight - win_h) / 2;
+
+	SetWindowPos(hWnd, HWND_TOP, wPosX,
+		wPosY, 0, 0, SWP_NOSIZE);
+
+#ifdef _DEBUG
+	AllocateConsoles();
+#endif
 }
+
+static void CloseAppWindow(HWND hWnd)
+{
+	DeallocateConsoles();
+	DestroyWindow(hWnd);
+	PostQuitMessage(0);
+}
+
 
 static LRESULT CALLBACK WndProc(HWND hWnd, UINT Msg, WPARAM wParam,  LPARAM lParam)
 {
@@ -27,15 +48,29 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT Msg, WPARAM wParam,  LPARAM lPar
 		break;
 	case WM_CLOSE:
 	case WM_DESTROY:
-		DestroyWindow(hWnd);
-		PostQuitMessage(0);
+		CloseAppWindow(hWnd);
 		break;
+
+	case WM_KEYDOWN:
+		if (wParam == VK_ESCAPE)
+			CloseAppWindow(hWnd);
+		break;
+	case WM_NCHITTEST:
+		LRESULT hit = DefWindowProcW(hWnd, Msg, wParam, lParam);
+		if (hit == HTCLIENT)
+		{
+			POINT p;
+			p.x = (short)lParam;
+			p.y = (short)(lParam >> 16);
+			ScreenToClient(hWnd, &p);
+			if (p.y <= 30)
+				hit = HTCAPTION;
+		}
+		return hit;
 	}
 	return DefWindowProcW(hWnd, Msg, wParam, lParam);
 }
 
-static LPCWSTR MainClassName = L"MainWindowClass";
-static HWND MainWindow;
 
 BOOL CreateAppWindow(HINSTANCE hInstance, int* w, int* h)
 {
@@ -55,23 +90,23 @@ BOOL CreateAppWindow(HINSTANCE hInstance, int* w, int* h)
 
 	RegisterClassExW(&WndClass);
 
-	int Width, Height;
+	wWidth, wHeight;
 
 	if (w)
-		Width = *w;
+		wWidth = *w;
 	else
-		Width = 800;
+		wWidth = 800;
 	if (h)
-		Height = *h;
+		wHeight = *h;
 	else
-		Height = 600;
+		wHeight = 600;
 	
 	MainWindow = CreateWindowExW(
 		WS_EX_ACCEPTFILES | WS_EX_APPWINDOW | WS_EX_WINDOWEDGE,
 		MainClassName,
 		L"Discord 2.0",
 		WS_POPUP,
-		CW_USEDEFAULT, CW_USEDEFAULT, Width, Height,
+		CW_USEDEFAULT, CW_USEDEFAULT, wWidth, wHeight,
 		NULL,
 		NULL,
 		hInstance,
