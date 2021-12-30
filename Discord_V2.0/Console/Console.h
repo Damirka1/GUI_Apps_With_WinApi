@@ -1,5 +1,4 @@
-#ifndef CONSOLE_HEADER
-#define CONSOLE_HEADER
+#pragma once
 #include <Windows.h>
 
 static HANDLE ConIn;
@@ -13,8 +12,6 @@ void AllocateConsoles()
 	ConOut = GetStdHandle(STD_OUTPUT_HANDLE);
 
 	SetConsoleTitleW(L"Discrod 2.0 Debug Console");
-
-	
 }
 
 void DeallocateConsoles()
@@ -42,5 +39,3 @@ void PrintError(LPCWSTR Msg)
 	if (Msg)
 		WriteConsoleW(ConOut, Msg, lstrlenW(Msg), NULL, NULL);
 }
-
-#endif

@@ -151,11 +151,15 @@
     </Manifest>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="Source\Application.c" />
+    <ClCompile Include="Application\Application.cpp" />
+    <ClCompile Include="Window\AppWindow.cpp" />
+    <ClCompile Include="Source\Source.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Console\Console.h" />
-    <ClInclude Include="Window\MainWindow.h" />
+    <ClInclude Include="Application\Application.h" />
+    <ClInclude Include="Window\AppWindow.h" />
+    <ClInclude Include="Window\WindowElements.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
