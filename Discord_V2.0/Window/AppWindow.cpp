@@ -105,9 +105,33 @@ void AppWindow::CreateAllWindowElements()
 	Title.width = 100;
 	Title.height = 30;
 	pDWFactory->CreateTextFormat(
-		L"Arial", NULL, DWRITE_FONT_WEIGHT_NORMAL,
-		DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 16.0f, L"", &Title.pFormat
+		L"Microsoft Sans Serif", NULL, DWRITE_FONT_WEIGHT_EXTRA_LIGHT,
+		DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 18.0f, L"", &Title.pFormat
 	);
+
+	// Child window
+	cPosX = 80;
+	cPosY = 30;
+	cWidth = wWidth;
+	cHeight = wHeight;
+	pRT->CreateSolidColorBrush(D2D1::ColorF(0.137f, 0.149f, 0.180f), &pCBG);
+
+	HRESULT hr = d2dWICFactory->CreateDecoderFromFilename(L"Resources/Main.jpg", NULL, GENERIC_READ,
+		WICDecodeMetadataCacheOnLoad, &d2dDecoder);
+
+	hr = d2dWICFactory->CreateFormatConverter(&d2dConverter);
+
+	hr = d2dDecoder->GetFrame(0, &d2dBmpSrc);
+
+	hr = d2dConverter->Initialize(d2dBmpSrc, GUID_WICPixelFormat32bppPBGRA,
+		WICBitmapDitherTypeNone, NULL, 0.f, WICBitmapPaletteTypeMedianCut);
+
+	ID2D1Bitmap* d2dBmp;
+
+	hr = pRT->CreateBitmapFromWicBitmap(d2dConverter, NULL, &d2dBmp);
+
+	BitMaps.push_back(d2dBmp);
+
 }
 
 void AppWindow::Initialize()
@@ -136,6 +160,9 @@ void AppWindow::Initialize()
 		reinterpret_cast<IUnknown**>(&pDWFactory)
 	);
 
+	hr = CoCreateInstance(CLSID_WICImagingFactory, NULL, CLSCTX_INPROC_SERVER,
+		__uuidof(IWICImagingFactory), (void**)(&d2dWICFactory));
+
 	if (SUCCEEDED(hr))
 	{
 		CreateAllWindowElements();
@@ -148,50 +175,63 @@ void AppWindow::Render()
 	pRT->BeginDraw();
 	pRT->Clear(D2D1::ColorF(0.09f, 0.101f,  0.129f, 1.0f));
 
-	// Render close button
+	// Render title menu
 	{
-		pRT->DrawLine(
-			D2D1::Point2F(static_cast<FLOAT>(CloseButton.x - CloseButton.width), static_cast<FLOAT>(CloseButton.y / 2)),
-			D2D1::Point2F(static_cast<FLOAT>(CloseButton.x + CloseButton.width / 2), static_cast<FLOAT>(CloseButton.y + CloseButton.height)),
-			CloseButton.Hover ? CloseButton.pHoverColor : CloseButton.pColor,
-			2
-		);
+		// Render close button
+		{
+			pRT->DrawLine(
+				D2D1::Point2F(static_cast<FLOAT>(CloseButton.x - CloseButton.width), static_cast<FLOAT>(CloseButton.y / 2)),
+				D2D1::Point2F(static_cast<FLOAT>(CloseButton.x + CloseButton.width / 2), static_cast<FLOAT>(CloseButton.y + CloseButton.height)),
+				CloseButton.Hover ? CloseButton.pHoverColor : CloseButton.pColor,
+				2
+			);
 
-		pRT->DrawLine(
-			D2D1::Point2F(static_cast<FLOAT>(CloseButton.x + CloseButton.width / 2), static_cast<FLOAT>(CloseButton.y / 2)),
-			D2D1::Point2F(static_cast<FLOAT>(CloseButton.x - CloseButton.width), static_cast<FLOAT>(CloseButton.y + CloseButton.height)),
-			CloseButton.Hover ? CloseButton.pHoverColor : CloseButton.pColor,
-			2
-		);
+			pRT->DrawLine(
+				D2D1::Point2F(static_cast<FLOAT>(CloseButton.x + CloseButton.width / 2), static_cast<FLOAT>(CloseButton.y / 2)),
+				D2D1::Point2F(static_cast<FLOAT>(CloseButton.x - CloseButton.width), static_cast<FLOAT>(CloseButton.y + CloseButton.height)),
+				CloseButton.Hover ? CloseButton.pHoverColor : CloseButton.pColor,
+				2
+			);
+		}
+
+		// Render up button
+		{
+			pRT->DrawRectangle(
+				D2D1::RectF(
+					static_cast<FLOAT>(UpButton.x - UpButton.width),
+					static_cast<FLOAT>(UpButton.y),
+					static_cast<FLOAT>(UpButton.x + UpButton.width),
+					static_cast<FLOAT>(UpButton.y + UpButton.height)),
+				UpButton.Hover ? UpButton.pHoverColor : UpButton.pColor,
+				1.5f);
+		}
+
+		// Render down button
+		{
+
+			pRT->DrawLine(
+				D2D1::Point2F(static_cast<FLOAT>(DownButton.x - DownButton.width), static_cast<FLOAT>(DownButton.y)),
+				D2D1::Point2F(static_cast<FLOAT>(DownButton.x + DownButton.width), static_cast<FLOAT>(DownButton.y)),
+				DownButton.Hover ? DownButton.pHoverColor : DownButton.pColor,
+				1.5f
+			);
+		}
+
+		// Render title
+		{
+			pRT->DrawTextW(Title.text, lstrlenW(Title.text), Title.pFormat,
+				D2D1::RectF(Title.x, Title.y, Title.x + Title.width, Title.y + Title.height), DownButton.pColor);
+		}
 	}
 
-	// Render up button
+	// Render servers
 	{
-		pRT->DrawRectangle(
-			D2D1::RectF(
-				static_cast<FLOAT>(UpButton.x - UpButton.width),
-				static_cast<FLOAT>(UpButton.y),
-				static_cast<FLOAT>(UpButton.x + UpButton.width),
-				static_cast<FLOAT>(UpButton.y + UpButton.height)),
-			UpButton.Hover ? UpButton.pHoverColor : UpButton.pColor,
-			1.5f);
+		pRT->DrawBitmap(BitMaps[0], D2D1::RectF(15, 40, 75, 100));
 	}
 
-	// Render down button
+	// Render Child window
 	{
-
-		pRT->DrawLine(
-			D2D1::Point2F(static_cast<FLOAT>(DownButton.x - DownButton.width), static_cast<FLOAT>(DownButton.y)),
-			D2D1::Point2F(static_cast<FLOAT>(DownButton.x + DownButton.width), static_cast<FLOAT>(DownButton.y)),
-			DownButton.Hover ? DownButton.pHoverColor : DownButton.pColor,
-			1.5f
-		);
-	}
-
-	// Render title
-	{
-		pRT->DrawTextW(Title.text, lstrlenW(Title.text), Title.pFormat,
-			D2D1_RECT_F(Title.x, Title.y, Title.x + Title.width, Title.y + Title.height), DownButton.pColor);
+		pRT->FillRectangle(D2D1::RectF(cPosX, cPosY, cWidth, cHeight), pCBG);
 	}
 
 	HRESULT hr = pRT->EndDraw();

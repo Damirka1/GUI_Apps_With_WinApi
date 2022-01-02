@@ -2,7 +2,12 @@
 #include <Windows.h>
 #include <d2d1.h>
 #include <dwrite_3.h>
+#include <wincodec.h>
+
 #include "WindowElements.h"
+
+#include <vector>
+
 #define DARK_THEME
 
 class AppWindow
@@ -14,13 +19,15 @@ private:
 
 	COLORREF wBG;
 	int wWidth, wHeight; // Window resolution
-	short wPosX, wPosY;  // Window position
+	int wPosX, wPosY;  // Window position
 	int sWidth, sHeight; // Screen resolution
+
+	int cPosX, cPosY;	// Position for child window
+	int	cWidth, cHeight; // Resolution of child window
 
 	Button CloseButton;
 	Button UpButton;
 	Button DownButton;
-
 	Label Title;
 
 	BOOL Initialized = false;
@@ -28,8 +35,15 @@ private:
 	// Direct2D stuff
 	ID2D1Factory* pD2DFactory;
 	IDWriteFactory7* pDWFactory;
-	ID2D1HwndRenderTarget* pRT;
-	ID2D1SolidColorBrush* pBG;
+	ID2D1HwndRenderTarget* pRT; // Render target
+	ID2D1SolidColorBrush* pBG;  // brush for window
+	ID2D1SolidColorBrush* pCBG; // brush for child window
+
+	IWICImagingFactory* d2dWICFactory;
+	IWICBitmapDecoder* d2dDecoder;
+	IWICFormatConverter* d2dConverter;
+	IWICBitmapFrameDecode* d2dBmpSrc;
+	std::vector<ID2D1Bitmap*> BitMaps;
 
 private:
 	void CenterWindow(HWND hWnd);
