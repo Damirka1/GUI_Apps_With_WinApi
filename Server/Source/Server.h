@@ -16,32 +16,6 @@ class Server
 		int timeouts[LISTEN];
 	} Connections;
 
-
-	enum class ContentType
-	{
-		Data,
-		File,
-		Message,
-		Error,
-		Null,
-	};
-
-	struct Header
-	{
-		std::string Message;
-		ContentType Type;
-		UINT64 ContentSize;
-	};
-
-	struct Response
-	{
-		std::string Header;
-		LPVOID Content;
-		ContentType Type;
-		UINT64 ContentSize;
-	};
-
-
 private:
 	SOCKET SockFd;
 	bool Running;
@@ -53,14 +27,38 @@ private:
 
 	HANDLE Thread;
 
-	std::unordered_map<std::string, std::function<void(SOCKET*, std::string*, LPCVOID, UINT64)>> Procedures;
+	std::unordered_map<std::string, std::function<void(Server*, SOCKET*, std::string*, LPCVOID, UINT64)>> Procedures;
+
+public:
+	enum class ContentType
+	{
+		Data,
+		File,
+		Message,
+		Error,
+		Null,
+	};
+
+	struct Response
+	{
+		std::string Header;
+		LPCVOID Content;
+		ContentType Type;
+		UINT64 ContentSize;
+	};
+
+	struct Header
+	{
+		std::string Message;
+		ContentType Type;
+		UINT64 ContentSize;
+	};
 
 private:
-	static Response* CreateResponse(std::string ResponseMsg, Server::ContentType Type, LPVOID Content, UINT64 ContentSize);
 	static Header* GetHeader(char* pBuffer, UINT32 BufferSize);
-	static UINT64 Send(char* pBuffer, SOCKET* Sender, UINT64 Count);
+	static UINT64 Send(const char* pBuffer, SOCKET* Sender, UINT64 Count);
 	static UINT64 RecieveContent(char** pBuffer, SOCKET* Sender, UINT64 Count);
-	UINT64 SendResponse(SOCKET* Sender, Response* Response);
+	
 	int RecieveHeader(SOCKET* Sender);
 	void ClearBuffer();
 
@@ -69,5 +67,7 @@ private:
 
 public:
 	int StartServer(const char* port);
-	bool AddProcedure(std::string, std::function<void(SOCKET*, std::string*, LPCVOID, UINT64)>);
+	bool AddProcedure(std::string, std::function<void(Server*, SOCKET*, std::string*, LPCVOID, UINT64)>);
+	static Response* CreateResponse(std::string ResponseMsg, Server::ContentType Type, LPCVOID Content, UINT64 ContentSize);
+	UINT64 SendResponse(SOCKET* Sender, Response* Response);
 };

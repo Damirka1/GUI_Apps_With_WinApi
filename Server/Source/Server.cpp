@@ -46,7 +46,7 @@ int Server::StartServer(const char* port)
 		return -1;
 	}
 
-	if((SockFd = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol)) == -1)
+	if((SockFd = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol)) == INVALID_SOCKET)
 	{
 		perror("Can't create server socket");
 		return -1;
@@ -88,7 +88,7 @@ int Server::StartServer(const char* port)
 	while(Running)
 	{
 		addr_size = sizeof(their_addr);
-		if((new_fd = accept(SockFd, (struct sockaddr*)&their_addr, &addr_size)) == -1)
+		if((new_fd = accept(SockFd, (struct sockaddr*)&their_addr, &addr_size)) == SOCKET_ERROR)
 		{
 			usleep(100);
 			continue;
@@ -114,7 +114,7 @@ int Server::StartServer(const char* port)
 	return 0;
 }
 
-bool Server::AddProcedure(std::string Header, std::function<void(SOCKET*, std::string*, LPCVOID, UINT64)> Procedure)
+bool Server::AddProcedure(std::string Header, std::function<void(Server*, SOCKET*, std::string*, LPCVOID, UINT64)> Procedure)
 {
 	const auto key = Procedures.find(Header);
 
@@ -141,13 +141,12 @@ UINT64 Server::RecieveContent(char** pBuffer, SOCKET* Sender, UINT64 Count)
 	while(numbytes < Count)
 	{
 		int r = recv(*Sender, *pBuffer + numbytes, static_cast<int>(Count - numbytes), 0);
-		if(r == -1)
+		if(r == 0)
 		{
-			perror("Can't recieve data in cycle");
-			*Sender = 0;
+			perror("Connection was closed");
 			return -1;
 		}
-		else if(r == 0)
+		else if(r == -1)
 		{
 			if(attemps++ == 5)
 				return -1;
@@ -172,13 +171,12 @@ int Server::RecieveHeader(SOCKET* Sender)
 	while (numbytes < BufferSize)
 	{
 		int r = recv(*Sender, Buffer + numbytes, BufferSize - numbytes, 0);
-		if (r == -1)
+		if (r == 0)
 		{
-			perror("Can't recieve data in cycle");
-			*Sender = 0;
+			perror("Connection was closed");
 			return -1;
 		}
-		else if (r == 0)
+		else if (r == -1)
 		{
 			if (attemps++ == 5)
 				return -1;
@@ -196,18 +194,21 @@ int Server::RecieveHeader(SOCKET* Sender)
 
 UINT64 Server::SendResponse(SOCKET* Sender, Response* Response)
 {
+	ClearBuffer();
 	UINT64 numbytes = 0;
 	// First send header
-	numbytes += Send(const_cast<char*>(Response->Header.c_str()), Sender, Response->Header.size() + 1);
+	memcpy(Buffer, Response->Header.c_str(), Response->Header.size() + 1);
+	numbytes += Send(Buffer, Sender, BufferSize);
 
 	// After header send content
 	if(Response->Content)
-		numbytes += Send(static_cast<char*>(Response->Content), Sender, Response->ContentSize);
+		numbytes += Send(static_cast<const char*>(Response->Content), Sender, Response->ContentSize);
 
+	ClearBuffer();
 	return numbytes;
 }
 
-UINT64 Server::Send(char* pBuffer, SOCKET* Sender, UINT64 Count)
+UINT64 Server::Send(const char* pBuffer, SOCKET* Sender, UINT64 Count)
 {
 	UINT64 numbytes = 0;
 	int attemps = 0;
@@ -215,13 +216,12 @@ UINT64 Server::Send(char* pBuffer, SOCKET* Sender, UINT64 Count)
 	while(numbytes < Count)
 	{
 		int r = send(*Sender, pBuffer + numbytes, static_cast<int>(Count - numbytes), 0);
-		if(r == -1)
+		if(r == 0)
 		{
-			perror("Can't send data in cycle");
-			*Sender = 0;
+			perror("Connection was closed");
 			return -1;
 		}
-		else if(r == 0)
+		else if(r == -1)
 		{
 			if(attemps++ == 5)
 				return -1;
@@ -245,7 +245,7 @@ int Server::QueueProccessor(Server* Server)
 	{
 		int poll_count = WSAPoll(Server->Connections.c, Server->ListenCount, 1);
 
-		if (poll_count == -1)
+		if (poll_count == SOCKET_ERROR)
 		{
 			//perror("poll");
 			continue;
@@ -326,7 +326,7 @@ Server::Header* Server::GetHeader(char* Buffer, UINT32 BufferSize)
 	return Header;
 }
 
-Server::Response* Server::CreateResponse(std::string ResponseMsg, Server::ContentType Type, LPVOID Content, UINT64 ContentSize)
+Server::Response* Server::CreateResponse(std::string ResponseMsg, Server::ContentType Type, LPCVOID Content, UINT64 ContentSize)
 {
 	std::string Header = "Header: " + ResponseMsg + '\n';
 	switch (Type)
@@ -360,36 +360,38 @@ Server::Response* Server::CreateResponse(std::string ResponseMsg, Server::Conten
 int Server::ExecuteCommands(SOCKET* Sender)
 {
 	if(strlen(Buffer) == 0)
-		return -1;
+		return -2;
 
-	printf("Recieved message: ");
+	printf("Recieved message:\n");
 	char* str = Buffer;
 	while (*str)
 	{
 		putchar(*str);
 		str++;
 	}
-	putchar('\n');
-
 
 	Header* Header = GetHeader(Buffer, BufferSize);
 
 	if (Header->Message == "NOHEADER")
 	{
-		Response* r = CreateResponse("Invalid header\n", ContentType::Error, NULL, NULL);
+		Response* r = CreateResponse("Invalid header", ContentType::Error, NULL, NULL);
 		SendResponse(Sender, r);
 		delete r;
-		return -1;
+		delete Header;
+		putchar('\n');
+		return 0;
 	}
 
 	const auto key = Procedures.find(Header->Message);
 
 	if (key == Procedures.end())
 	{
-		Response* r = CreateResponse("Invalid response\n", ContentType::Error, NULL, NULL);
+		Response* r = CreateResponse("Invalid request", ContentType::Error, NULL, NULL);
 		SendResponse(Sender, r);
 		delete r;
-		return -1;
+		delete Header;
+		putchar('\n');
+		return 0;
 	}
 
 	if (Header->ContentSize > 0)
@@ -397,9 +399,13 @@ int Server::ExecuteCommands(SOCKET* Sender)
 		char* pBuffer;
 		RecieveContent(&pBuffer, Sender, Header->ContentSize);
 
-		Procedures[Header->Message](Sender, &Header->Message, pBuffer, Header->ContentSize);
+		Procedures[Header->Message](this, Sender, &Header->Message, pBuffer, Header->ContentSize);
+		free(pBuffer);
 	}
 	else
-		Procedures[Header->Message](Sender, &Header->Message, NULL, NULL);
+		Procedures[Header->Message](this, Sender, &Header->Message, NULL, NULL);
+
+	delete Header;
+	putchar('\n');
 	return 0;
 }
