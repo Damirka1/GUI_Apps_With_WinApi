@@ -33,6 +33,12 @@ void DatabaseApp::PrintDatabase(Database* Database)
 			void* pData = NULL;
 			memcpy(&pData, pField, sizeof(void*));
 
+			if (!pData)
+			{
+				printf("Null ");
+				continue;
+			}
+
 			switch (Database->Layouts[j].Type)
 			{
 			case Database::FieldType::Int8:
